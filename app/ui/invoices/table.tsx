@@ -1,21 +1,59 @@
-import Image from 'next/image';
-import { UpdateInvoice, DeleteInvoice } from '@/app/ui/invoices/buttons';
-import InvoiceStatus from '@/app/ui/invoices/status';
-import { formatDateToLocal, formatCurrency } from '@/app/lib/utils';
-import { fetchFilteredInvoices } from '@/app/lib/data';
+import Image from "next/image";
+import { UpdateInvoice, DeleteInvoice } from "@/app/ui/invoices/buttons";
+import { InvoiceStatus } from "@/app/ui/invoices/status";
+import { formatDateToLocal, formatCurrency } from "@/app/lib/utils";
+import {
+  fetchFilteredInvoices,
+  getPreferences,
+  setPreferences,
+} from "@/app/lib/data";
+import { redirect } from "next/navigation";
 
 export default async function InvoicesTable({
   query,
   currentPage,
+  filter,
 }: {
   query: string;
   currentPage: number;
+  filter: string;
 }) {
-  const invoices = await fetchFilteredInvoices(query, currentPage);
+  const invoices = await fetchFilteredInvoices(query, currentPage, filter);
+  const selectedTabMapItem = getPreferences("tab_selection");
+  if (selectedTabMapItem && selectedTabMapItem !== filter) {
+    redirect(`/dashboard/invoices?filter=${selectedTabMapItem}`);
+  }
+  const applyTabFilter = async (data: FormData) => {
+    "use server";
+    const selectedTab = data.get("status") as string;
+    setPreferences("tab_selection", selectedTab);
+    console.log("Selected tab : ", selectedTab);
 
+    redirect(`/dashboard/invoices?filter=${selectedTab}`);
+  };
   return (
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
+        <div className="flex space-x-2">
+          {["all", "paid", "pending", "canceled", "overdue"].map((item) => (
+            <form key={item} action={applyTabFilter}>
+              <input
+                type="hidden"
+                className="hidden"
+                readOnly
+                name="status"
+                id="status"
+                value={item}
+              ></input>
+              <button
+                className={filter == item ? "text-orange-700" : ""}
+                type="submit"
+              >
+                {item}
+              </button>
+            </form>
+          ))}
+        </div>
         <div className="rounded-lg bg-gray-50 p-2 md:pt-0">
           <div className="md:hidden">
             {invoices?.map((invoice) => (
@@ -37,7 +75,7 @@ export default async function InvoicesTable({
                     </div>
                     <p className="text-sm text-gray-500">{invoice.email}</p>
                   </div>
-                  <InvoiceStatus status={invoice.status} />
+                  <InvoiceStatus invoice={invoice} />
                 </div>
                 <div className="flex w-full items-center justify-between pt-4">
                   <div>
@@ -105,7 +143,7 @@ export default async function InvoicesTable({
                     {formatDateToLocal(invoice.date)}
                   </td>
                   <td className="whitespace-nowrap px-3 py-3">
-                    <InvoiceStatus status={invoice.status} />
+                    <InvoiceStatus invoice={invoice} />
                   </td>
                   <td className="whitespace-nowrap py-3 pl-6 pr-3">
                     <div className="flex justify-end gap-3">

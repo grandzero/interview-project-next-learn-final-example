@@ -5,9 +5,21 @@ import {
   InvoiceForm,
   InvoicesTable,
   LatestInvoiceRaw,
+  Logs,
   Revenue,
 } from './definitions';
 import { formatCurrency } from './utils';
+import { revalidatePath } from 'next/cache';
+
+// TODO: For the sake of demo, in memory cache structure is used for storing users ui preferences. There are multiple ways to achive this like cookies etc
+let uiPreferences = new Map();
+
+export function getPreferences(key: string) {
+  return uiPreferences.get(key);
+}
+export function setPreferences(key: string, value: string) {
+  uiPreferences.set(key, value)
+}
 
 export async function fetchRevenue() {
   try {
@@ -87,11 +99,40 @@ const ITEMS_PER_PAGE = 6;
 export async function fetchFilteredInvoices(
   query: string,
   currentPage: number,
+  filter: string
 ) {
   const offset = (currentPage - 1) * ITEMS_PER_PAGE;
 
   try {
-    const invoices = await sql<InvoicesTable>`
+ 
+    const conditions = [];
+
+    if(filter == "overdue"){
+      conditions.push(`invoices.status = 'pending' AND invoices.date < NOW() - INTERVAL '14 days'`)
+     
+    }
+    if(filter !== "all" && filter !== "overdue" && filter.trim() !== ""){
+      conditions.push(`invoices.status = '${filter}'`)
+    }
+    if(filter == "pending"){
+      conditions.push(`invoices.status = 'pending' AND invoices.date > NOW() - INTERVAL '14 days'`)
+    }
+    if(query){
+      conditions.push(`
+        customers.name ILIKE ${`%${query}%`} OR
+        customers.email ILIKE ${`%${query}%`} OR
+        invoices.amount::text ILIKE ${`%${query}%`} OR
+        invoices.date::text ILIKE ${`%${query}%`} OR
+        invoices.status ILIKE ${`%${query}%`}
+        `)
+    }
+    
+   
+
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(` AND `)}` : "";
+
+   
+    const invoices = await sql.query<InvoicesTable>(`
       SELECT
         invoices.id,
         invoices.amount,
@@ -102,20 +143,31 @@ export async function fetchFilteredInvoices(
         customers.image_url
       FROM invoices
       JOIN customers ON invoices.customer_id = customers.id
-      WHERE
-        customers.name ILIKE ${`%${query}%`} OR
-        customers.email ILIKE ${`%${query}%`} OR
-        invoices.amount::text ILIKE ${`%${query}%`} OR
-        invoices.date::text ILIKE ${`%${query}%`} OR
-        invoices.status ILIKE ${`%${query}%`}
+     ${where}
       ORDER BY invoices.date DESC
       LIMIT ${ITEMS_PER_PAGE} OFFSET ${offset}
-    `;
-
+    `);
+    revalidatePath("/dashboard/invoices")
     return invoices.rows;
   } catch (error) {
+    //console.error('Database Error:', error);
+    //throw new Error('Failed to fetch invoices.');
+  }
+}
+
+
+export async function fetchActivityLog(
+  invoiceId: string,
+) {
+  try {
+    const {rows} = await sql<Logs>`SELECT * FROM logs WHERE invoice_id = ${invoiceId} ORDER BY updated_at DESC`
+   
+    revalidatePath(`/dashboard/invoices/${invoiceId}/edit`)
+    return rows;
+    
+  } catch (error) {
     console.error('Database Error:', error);
-    throw new Error('Failed to fetch invoices.');
+    throw new Error('Failed to fetch logs.');
   }
 }
 
@@ -157,7 +209,7 @@ export async function fetchInvoiceById(id: string) {
       // Convert amount from cents to dollars
       amount: invoice.amount / 100,
     }));
-
+    revalidatePath(`/dashboard/invoices/${id}/edit`)
     return invoice[0];
   } catch (error) {
     console.error('Database Error:', error);
