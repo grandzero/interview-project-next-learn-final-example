@@ -65,54 +65,43 @@ async function* logger(invoice_id: string, new_status: string){
   `
 }
 
-
-
-export async function restoreFromLog(id: string, data: FormData){
-  try{
-    
+async function restoreInvoice(id: string, data: FormData){
+  try {
     const invoice_id = data.get("invoice_id") as string;
-    // TODO: Fix this sql later
-    // await sql`
-    // WITH old_status_rec AS old_status (
-    //   SELECT old_status FROM logs WHERE id = ${id}
-    // ) UPDATE invoices
-    //  SET status = (SELECT old_status FROM old_status_rec)
-    //  WHERE id = ${invoice_id}
-    // `
-
     const session = await auth();
     const user = session?.user?.email;
-   
-    if(!session || !user ) return
-  
 
-    const {rows, rowCount} = await sql`SELECT * FROM logs WHERE id = ${id}`
-    if(rowCount == 0) throw Error("Error occured while getting logs");
-    const old_status = rows[0].old_status;
-    const new_status = rows[0].new_status;
+    if (!session || !user) return;
 
-    await sql`UPDATE invoices SET status = ${old_status} WHERE id=${invoice_id}`;
-    // logging latest change
-    sql`INSERT INTO logs(
-    updated_by,
-    old_status,
-    invoice_id,
-    new_status,
-    updated_at
-  ) VALUES (
-    ${user},
-    ${new_status},
-    ${invoice_id},
-    ${old_status},
-    NOW()
-  )`
-
-  revalidatePath(`/dashboard/invoices/${invoice_id}/edit`)
-    
-  }catch(err){
+    await sql`
+      WITH log_data AS (
+        SELECT old_status, new_status, invoice_id
+        FROM logs
+        WHERE id = ${id}
+      ),
+      update_invoice AS (
+        UPDATE invoices
+        SET status = (SELECT old_status FROM log_data)
+        WHERE id = (SELECT invoice_id FROM log_data)
+        RETURNING status AS new_invoice_status
+      )
+      INSERT INTO logs (updated_by, old_status, invoice_id, new_status, updated_at)
+      SELECT 
+        ${user},
+        (SELECT new_status FROM log_data),
+        (SELECT invoice_id FROM log_data),
+        (SELECT new_invoice_status FROM update_invoice),
+        NOW()
+    `;
+    //revalidatePath(`/dashboard/invoices/[id]/edit`, 'page');
+  } catch (err) {
     console.log(err);
-    return {message: "Error occured while restoring"}
+    return { message: "Error occurred while restoring" };
   }
+}
+
+export async function restoreFromLog(id: string, data: FormData) {
+    await restoreInvoice(id, data);
 }
 
 

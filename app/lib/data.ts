@@ -162,7 +162,6 @@ export async function fetchActivityLog(
   try {
     const {rows} = await sql<Logs>`SELECT * FROM logs WHERE invoice_id = ${invoiceId} ORDER BY updated_at DESC`
    
-    revalidatePath(`/dashboard/invoices/${invoiceId}/edit`)
     return rows;
     
   } catch (error) {
@@ -209,7 +208,7 @@ export async function fetchInvoiceById(id: string) {
       // Convert amount from cents to dollars
       amount: invoice.amount / 100,
     }));
-    revalidatePath(`/dashboard/invoices/${id}/edit`)
+    
     return invoice[0];
   } catch (error) {
     console.error('Database Error:', error);
