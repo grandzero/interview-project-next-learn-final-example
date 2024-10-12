@@ -95,7 +95,7 @@ async function restoreInvoice(id: string, data: FormData){
     `;
     //revalidatePath(`/dashboard/invoices/[id]/edit`, 'page');
   } catch (err) {
-    console.log(err);
+  
     return { message: "Error occurred while restoring" };
   }
 }
