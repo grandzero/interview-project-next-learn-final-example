@@ -6,6 +6,17 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { auth, signIn } from '@/auth';
 import { AuthError } from 'next-auth';
+import { cookies } from 'next/headers';
+
+export async function setFilterCookie(data: FormData){
+  const selectedTab = data.get("status") as string;
+  cookies().set("filter", selectedTab, {expires: new Date(Date.now() + 1000 * 60 * 60 * 24)});
+  revalidatePath("/dashboard/invoices");
+}
+
+export async function getFilterCookie(){
+  return cookies().get("filter")?.value || "all";
+}
 
 const FormSchema = z.object({
   id: z.string(),

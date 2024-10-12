@@ -4,39 +4,27 @@ import { InvoiceStatus } from "@/app/ui/invoices/status";
 import { formatDateToLocal, formatCurrency } from "@/app/lib/utils";
 import {
   fetchFilteredInvoices,
-  getPreferences,
-  setPreferences,
+  //getPreferences,
+  //setPreferences,
 } from "@/app/lib/data";
-import { redirect } from "next/navigation";
+
+import { getFilterCookie, setFilterCookie } from "@/app/lib/actions";
 
 export default async function InvoicesTable({
   query,
   currentPage,
-  filter,
 }: {
   query: string;
   currentPage: number;
-  filter: string;
 }) {
+  const filter = await getFilterCookie();
   const invoices = await fetchFilteredInvoices(query, currentPage, filter);
-  const selectedTabMapItem = getPreferences("tab_selection");
-  if (selectedTabMapItem && selectedTabMapItem !== filter) {
-    redirect(`/dashboard/invoices?filter=${selectedTabMapItem}`);
-  }
-  const applyTabFilter = async (data: FormData) => {
-    "use server";
-    const selectedTab = data.get("status") as string;
-    setPreferences("tab_selection", selectedTab);
-    console.log("Selected tab : ", selectedTab);
-
-    redirect(`/dashboard/invoices?filter=${selectedTab}`);
-  };
   return (
     <div className="mt-6 flow-root">
       <div className="inline-block min-w-full align-middle">
         <div className="flex space-x-2">
           {["all", "paid", "pending", "canceled", "overdue"].map((item) => (
-            <form key={item} action={applyTabFilter}>
+            <form key={item} action={setFilterCookie}>
               <input
                 type="hidden"
                 className="hidden"

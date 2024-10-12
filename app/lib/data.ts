@@ -12,14 +12,14 @@ import { formatCurrency } from './utils';
 import { revalidatePath } from 'next/cache';
 
 // TODO: For the sake of demo, in memory cache structure is used for storing users ui preferences. There are multiple ways to achive this like cookies etc
-let uiPreferences = new Map();
+/*let uiPreferences = new Map();
 
 export function getPreferences(key: string) {
   return uiPreferences.get(key);
 }
 export function setPreferences(key: string, value: string) {
   uiPreferences.set(key, value)
-}
+}*/
 
 export async function fetchRevenue() {
   try {
